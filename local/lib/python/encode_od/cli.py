@@ -1,5 +1,5 @@
 from subprocess import call, check_output, PIPE, Popen
-import os, sys, json
+import os, sys, json, smtplib
 import click
 if float(sys.version[:3]) < 3.3:
     from pipes import quote
@@ -67,10 +67,31 @@ def makemkv(source,output,title):
     help='Device Source Integer, ie /dev/sr0 [default: 0]')
 @click.option('--output', '-o', default=os.path.join(base_path, 'output'),
     help='Absolute path of Output Directory [default: ./output]')
-def main(source, output):
+@click.option('--notify', '-n', default=False, multiple=True,
+    help='Email address to notify')
+@click.option('--email-sender', '-f', default='encode@optical.disc',
+    help='Email sender address')
+@click.option('--email-host', '-h', default='localhost', help='Email provider')
+@click.option('--email-port', '-l', default=25, help='Email port')
+@click.option('--starttls', '-t', is_flag=True, help='Email starttls')
+@click.option('--email-user', '-u', default=False, help='Email user')
+@click.option('--email-pass', '-p', default=False, help='Email password')
+def main(source, output,notify,email_sender,email_host,email_port,starttls,email_user,email_pass):
     # get the movie title
     title = get_dvd_name(source)
-    # title = 'Daddys Home'
+    if notify:
+        email_temp = {
+        'sender': email_sender,
+        'receivers': notify,
+        'subject': 'Encoding %s' %title,
+        'host': email_host,
+        'port': email_port,
+        'starttls': starttls,
+        'user': email_user,
+        'pass': email_pass,
+        }
+        send_email(message='Encoding started.', **email_temp)
+
     # make necessary directories
     groupP = os.path.join(output, title)
     os.makedirs(output, exist_ok=True)
@@ -85,6 +106,45 @@ def main(source, output):
     # Encode mp4
     ffmpeg(groupP, title)
 
+    shell(['eject', 'sr%d' % source])
+    if notify:
+        send_email(message='Encoding finished.', **email_temp)
+
+
+def send_email(**kwargs):
+    sender = kwargs.get('sender',False)
+    receivers = kwargs.get('receivers',False)
+    subject = kwargs.get('subject',False)
+    message = kwargs.get('message',False)
+    host = kwargs.get('host', 'localhost')
+    port = kwargs.get('port', 25)
+    starttls = kwargs.get('starttls', False)
+    user = kwargs.get('user',False)
+    password = kwargs.get('password',False)
+    if type(receivers) is str:
+        recievers = [recievers]
+    body = '\r\n'.join([
+        'From: %s' % sender,
+        'To: %s' % ','.join(receivers),
+        'Subject: %s' % subject,
+        '',
+        message
+        ])
+
+    try:
+       smtpObj = smtplib.SMTP(host, port)
+       smtpObj.ehlo()
+       if starttls:
+           smtpObj.starttls()
+       smtpObj.ehlo
+       if user and password:
+           smtpObj.login(user,password)
+       smtpObj.sendmail(sender, receivers, body)
+       smtpObj.quit()
+       print("Successfully sent email")
+    except Exception as err:
+       print("Error: unable to send email")
+       print(err)
 
 def convert_subtitles(output, title):
     sfiles = {
