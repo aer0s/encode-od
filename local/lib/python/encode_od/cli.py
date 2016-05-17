@@ -78,8 +78,7 @@ def makemkv(source,output,title):
 @click.option('--email-pass', '-p', default=False, help='Email password')
 def main(source, output,notify,email_sender,email_host,email_port,starttls,email_user,email_pass):
     # get the movie title
-    # title = get_dvd_name(source)
-    title = 'Something'
+    title = get_dvd_name(source)
     if notify:
         email_temp = {
         'sender': email_sender,
