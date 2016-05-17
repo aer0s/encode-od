@@ -46,8 +46,9 @@ def handbrake(source,title):
 
 def makemkv(source,output,title):
     print('Running makemkv')
-    shell('makemkvcon mkv --decrypt --cache=16 -r disc:%d all %s' % (source,
-        output), stream=True)
+    shell(['makemkvcon', 'mkv', '--decrypt', '--cache=16', '-r',
+        'disc:%d' % source, 'all', output.replace], stream=True)
+
 
     # Find which files to keep
     fl = os.listdir(output)
@@ -93,7 +94,7 @@ def main(source, output,notify,email_sender,email_host,email_port,starttls,email
         send_email(message='Encoding started.', **email_temp)
 
     # make necessary directories
-    groupP = os.path.join(output, title)
+    groupP = os.path.join(output, title.replace(' ', '_'))
     os.makedirs(output, exist_ok=True)
     os.makedirs(groupP, exist_ok=True)
 
