@@ -47,7 +47,7 @@ def handbrake(source,title):
 def makemkv(source,output,title):
     print('Running makemkv')
     shell(['makemkvcon', 'mkv', '--decrypt', '--cache=16', '-r',
-        'disc:%d' % source, 'all', output.replace], stream=True)
+        'disc:%d' % source, 'all', output], stream=True)
 
 
     # Find which files to keep
