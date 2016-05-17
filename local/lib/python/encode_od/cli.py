@@ -94,18 +94,18 @@ def main(source, output,notify,email_sender,email_host,email_port,starttls,email
         send_email(message='Encoding started.', **email_temp)
 
     # make necessary directories
-    # groupP = os.path.join(output, title)
-    # os.makedirs(output, exist_ok=True)
-    # os.makedirs(groupP, exist_ok=True)
+    groupP = os.path.join(output, title)
+    os.makedirs(output, exist_ok=True)
+    os.makedirs(groupP, exist_ok=True)
 
     # rip to mkv
-    # makemkv(source, groupP, title)
+    makemkv(source, groupP, title)
 
     # Convert and insert subtitles
-    # convert_subtitles(groupP, title)
+    convert_subtitles(groupP, title)
 
     # Encode mp4
-    # ffmpeg(groupP, title)
+    ffmpeg(groupP, title)
 
     shell(['eject', 'sr%d' % source])
     if notify:
