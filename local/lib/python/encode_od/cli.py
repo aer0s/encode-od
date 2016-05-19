@@ -1,12 +1,22 @@
 from subprocess import call, check_output, PIPE, Popen
-import os, sys, json, smtplib
+import os, sys, json, smtplib, datetime, shlex
 import click
 if float(sys.version[:3]) < 3.3:
     from pipes import quote
 else:
     from shlex import quote
+    unicode = str
 
 base_path = os.path.dirname(os.path.abspath(__file__))
+
+# This is decieving as by default shell commands are logged. See global_logging
+# assignment in main()
+global_logging = '/tmp'
+
+def eject(drive):
+    if type(drive) is int:
+        drive = 'sr%d' % drive
+    shell(['eject', drive], shell=True)
 
 def get_dvd_name(source):
     cmd = [' '.join([
@@ -31,37 +41,51 @@ def ffmpeg(source,title):
             '-c:v', 'copy', '-vcodec', 'libx264',
             '-c:a', 'copy', '-acodec', 'aac',
             '-c:s', 'mov_text', opts['dest']])
-        ], shell=True)
+        ], shell=True, logdir=source)
     return result
 
-def handbrake(source,title):
+def handbrake(source,output):
     opts = {
-        'src': quote(os.path.join(source,'%s.mkv' % title)),
-        'dest': quote(os.path.join(source, '%s.mp4' % title)),
+        'src': quote(source),
+        'dest': quote(output),
         }
     result = shell(
         ['HandBrakeCLI -i %(src)s -o %(dest)s --preset="AppleTV 3"' % opts],
         shell=True)
     return result
 
-def makemkv(source,output,title):
-    print('Running makemkv')
-    shell(['makemkvcon', 'mkv', '--decrypt', '--cache=16', '-r',
-        'disc:%d' % source, 'all', output], stream=True)
+def log(message):
+    logfile = os.path.join(global_logging,'rip.log')
+    if type(message) not in [str,unicode]:
+        message = str(message)
+    if os.path.isdir(global_logging):
+        log_file = open(logfile, 'a')
+        log_file.write('[ %s ] - ' % str(datetime.datetime.now()))
+        log_file.write(message)
+        log_file.write('\n')
+        log_file.close()
 
+
+def makemkv(source,output,title):
+    log('Running makemkv')
+    cmd = 'makemkvcon mkv --decrypt --cache=16 -r disc:%d all %s'
+    shell([cmd % (source, output)], shell=True)
 
     # Find which files to keep
     fl = os.listdir(output)
-    keep = -1
-    destroy = [os.path.join(output, f) for f in fl]
+    destroy = [os.path.join(output, f) for f in fl if f.endswith('.mkv')]
     sizes = [os.path.getsize(f) for f in destroy]
-    biggest = sizes.index(max(sizes))
-    del destroy[biggest]
+    if sizes:
+        biggest = sizes.index(max(sizes))
+        # remove the largest mkv from the list
+        del destroy[biggest]
 
-    print('Cleaning up')
-    [os.remove(os.path.join(output, f)) for f in destroy]
-    save_path = os.path.join(output, '%s.mkv' % title)
-    os.rename(os.path.join(output, fl[biggest]), save_path)
+        log('Cleaning up')
+        [os.remove(os.path.join(output, f)) for f in destroy]
+        save_path = os.path.join(output, '%s.mkv' % title)
+        os.rename(os.path.join(output, fl[biggest]), save_path)
+    else:
+        log(cmd % (source, output))
 
 @click.command()
 @click.option('--source', '-s', default=0,
@@ -77,7 +101,8 @@ def makemkv(source,output,title):
 @click.option('--starttls', '-t', is_flag=True, help='Email starttls')
 @click.option('--email-user', '-u', default=False, help='Email user')
 @click.option('--email-pass', '-p', default=False, help='Email password')
-def main(source, output,notify,email_sender,email_host,email_port,starttls,email_user,email_pass):
+@click.option('--no-logging', is_flag=True, help='Disable logging')
+def main(source, output,notify,email_sender,email_host,email_port,starttls,email_user,email_pass,no_logging):
     # get the movie title
     title = get_dvd_name(source)
     if notify:
@@ -95,21 +120,53 @@ def main(source, output,notify,email_sender,email_host,email_port,starttls,email
 
     # make necessary directories
     groupP = os.path.join(output, title.replace(' ', '_'))
+    global global_logging
+    global_logging = groupP if not no_logging else False
     os.makedirs(output, exist_ok=True)
     os.makedirs(groupP, exist_ok=True)
 
     # rip to mkv
-    makemkv(source, groupP, title)
-
+    log('Rip to mkv')
+    try:
+        makemkv(source, groupP, title)
+    except Exception as Err:
+        log(Err)
+        if notify:
+            send_email(message='MakeMKV encode Failure!:\n%s' % str(Err), **email_temp)
+        try:
+            log('Attempting to encode with HandBrake')
+            if notify:
+                send_email(message='Attempting to encode with HandBrake' **email_temp)
+            handbrake('/dev/sr%d' % source, os.path.join(groupP, '%s.mkv' % title))
+        except Exception as Err:
+            log(Err)
+            if notify:
+                send_email(message='HandBrake MKV encode Failure!:\n%s' % str(Err), **email_temp)
+            exit()
     # Convert and insert subtitles
-    convert_subtitles(groupP, title)
+    log('Convert and insert subtitles')
+    try:
+        convert_subtitles(groupP, title)
+    except Exception as Err:
+        log(Err)
+        if notify:
+            send_email(message='Subtitle Failure!:\n%s' % str(Err), **email_temp)
 
     # Encode mp4
-    ffmpeg(groupP, title)
+    log('Encode mp4')
+    try:
+        ffmpeg(groupP, title)
+    except Exception as Err:
+        log(Err)
+        if notify:
+            send_email(message='FFmpeg Failure!:\n%s' % str(Err), **email_temp)
+        exit()
 
-    shell(['eject', 'sr%d' % source])
+
     if notify:
         send_email(message='Encoding finished.', **email_temp)
+    log('Encoding Complete')
+    eject(source)
 
 
 def send_email(**kwargs):
@@ -179,6 +236,7 @@ def convert_subtitles(output, title):
         print('Cleaning up ...')
         os.remove(os.path.join(output, '%s.idx' % title))
         os.remove(os.path.join(output, '%s.sub' % title))
+        os.remove(os.path.join(output, '%s.srt' % title))
         os.remove(os.path.join(output, '%s.mkv' % title))
         os.rename(os.path.join(output, '%s-working.mkv' % title), os.path.join(output, '%s.mkv' % title))
         print('done.')
@@ -195,7 +253,13 @@ def shell(cmd, **kwargs):
     elif kwargs.get('shell', False):
         r = Popen(cmd, stdout=PIPE, shell=True)
         (output, err) = r.communicate()
-        return output.decode('utf-8')
+        if global_logging:
+            if output:
+                log(output.decode('utf-8'))
+            if err:
+                log(err.decode('utf-8'))
+        else:
+            return output.decode('utf-8')
     else:
         return check_output(cmd)
 

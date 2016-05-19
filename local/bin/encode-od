@@ -4,7 +4,7 @@ import os
 import sys
 
 # Append this project to the PYTHONPATH and start
-proj_dir = os.path.abspath(__file__)
+proj_dir = os.path.realpath(__file__)
     # And move up 4 directories ie
     # ....../encode-od/local/bin/encode-od
     #           ^--4--|--3--|-2-|---1---| file
