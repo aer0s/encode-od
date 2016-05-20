@@ -54,7 +54,7 @@ def handbrake(source,output):
         shell=True)
     return result
 
-def log(message):
+def log(message, email_temp=False):
     logfile = os.path.join(global_logging,'rip.log')
     if type(message) not in [str,unicode]:
         message = str(message)
@@ -64,6 +64,8 @@ def log(message):
         log_file.write(message)
         log_file.write('\n')
         log_file.close()
+    if email_temp:
+        email(message=message, **email_temp)
 
 
 def makemkv(source,output,title):
@@ -92,6 +94,8 @@ def makemkv(source,output,title):
     help='Device Source Integer, ie /dev/sr0 [default: 0]')
 @click.option('--output', '-o', default=os.path.join(base_path, 'output'),
     help='Absolute path of Output Directory [default: ./output]')
+@click.option('--force', is_flag=True, help='Force overwrite')
+@click.option('--no-logging', is_flag=True, help='Disable logging')
 @click.option('--notify', '-n', default=False, multiple=True,
     help='Email address to notify')
 @click.option('--email-sender', '-f', default='encode@optical.disc',
@@ -101,10 +105,10 @@ def makemkv(source,output,title):
 @click.option('--starttls', '-t', is_flag=True, help='Email starttls')
 @click.option('--email-user', '-u', default=False, help='Email user')
 @click.option('--email-pass', '-p', default=False, help='Email password')
-@click.option('--no-logging', is_flag=True, help='Disable logging')
-def main(source, output,notify,email_sender,email_host,email_port,starttls,email_user,email_pass,no_logging):
+def main(source, output,force,no_logging,notify,email_sender,email_host,email_port,starttls,email_user,email_pass):
     # get the movie title
     title = get_dvd_name(source)
+    email_temp = False
     if notify:
         email_temp = {
         'sender': email_sender,
@@ -116,57 +120,48 @@ def main(source, output,notify,email_sender,email_host,email_port,starttls,email
         'user': email_user,
         'password': email_pass,
         }
-        send_email(message='Encoding started.', **email_temp)
+    log('Encoding started.', email_temp)
 
     # make necessary directories
     groupP = os.path.join(output, title.replace(' ', '_'))
     global global_logging
     global_logging = groupP if not no_logging else False
     os.makedirs(output, exist_ok=True)
-    os.makedirs(groupP, exist_ok=True)
+    # If this has already been done then kill this attempt unless forced
+    if not os.path.isdir(groupP) or force:
+        os.makedirs(groupP, exist_ok=True)
 
-    # rip to mkv
-    log('Rip to mkv')
-    try:
-        makemkv(source, groupP, title)
-    except Exception as Err:
-        log(Err)
-        if notify:
-            send_email(message='MakeMKV encode Failure!:\n%s' % str(Err), **email_temp)
+        # rip to mkv
+        log('Rip to mkv')
         try:
-            log('Attempting to encode with HandBrake')
-            if notify:
-                send_email(message='Attempting to encode with HandBrake' **email_temp)
-            handbrake('/dev/sr%d' % source, os.path.join(groupP, '%s.mkv' % title))
+            makemkv(source, groupP, title)
         except Exception as Err:
-            log(Err)
-            if notify:
-                send_email(message='HandBrake MKV encode Failure!:\n%s' % str(Err), **email_temp)
+            log('MakeMKV encode Failure!:\n%s' % str(Err), email_temp)
+            try:
+                log('Attempting to encode with HandBrake', email_temp)
+                handbrake('/dev/sr%d' % source, os.path.join(groupP, '%s.mkv' % title))
+            except Exception as Err:
+                log('HandBrake MKV encode Failure!:\n%s' % str(Err), email_temp)
+                exit()
+        # Convert and insert subtitles
+        log('Convert and insert subtitles')
+        try:
+            convert_subtitles(groupP, title)
+        except Exception as Err:
+            log('Subtitle Failure!:\n%s' % str(Err), email_temp)
+
+        # Encode mp4
+        log('Encode mp4')
+        try:
+            ffmpeg(groupP, title)
+        except Exception as Err:
+            log('FFmpeg Failure!:\n%s' % str(Err), email_temp)
             exit()
-    # Convert and insert subtitles
-    log('Convert and insert subtitles')
-    try:
-        convert_subtitles(groupP, title)
-    except Exception as Err:
-        log(Err)
-        if notify:
-            send_email(message='Subtitle Failure!:\n%s' % str(Err), **email_temp)
 
-    # Encode mp4
-    log('Encode mp4')
-    try:
-        ffmpeg(groupP, title)
-    except Exception as Err:
-        log(Err)
-        if notify:
-            send_email(message='FFmpeg Failure!:\n%s' % str(Err), **email_temp)
-        exit()
-
-
-    if notify:
-        send_email(message='Encoding finished.', **email_temp)
-    log('Encoding Complete')
-    eject(source)
+            log('Encoding finished.', email_temp)
+            eject(source)
+    else:
+        log('This od has been encoded already. If you woul like to do it again plese use --force option.', email_temp)
 
 
 def send_email(**kwargs):
