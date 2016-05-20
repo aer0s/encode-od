@@ -65,7 +65,7 @@ def log(message, email_temp=False):
         log_file.write('\n')
         log_file.close()
     if email_temp:
-        email(message=message, **email_temp)
+        send_email(message=message, **email_temp)
 
 
 def makemkv(source,output,title):
