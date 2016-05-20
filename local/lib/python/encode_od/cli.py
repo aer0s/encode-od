@@ -35,13 +35,18 @@ def ffmpeg(source,title):
         'dest': quote(os.path.join(source, '%s.m4v' % title)),
         'srt': quote(os.path.join(source, '%s.srt' % title)),
         }
+    # make sure srt file actually exists
+    if os.path.isfile(opts['srt']):
+        opts['srt'] = '-i %s -map 1:s -c:s mov_text' % opts['srt']
+    else:
+        opts['srt'] = ''
+
     result = shell([' '.join([
             'ffmpeg','-i', opts['src'], '-i', opts['srt'],
-            '-map', '0:v', '-map', '0:a', '-map', '1:s',
+            '-map', '0:v', '-map', '0:a',
             '-c:v', 'copy', '-vcodec', 'libx264',
-            '-c:a', 'copy', '-acodec', 'aac',
-            '-c:s', 'mov_text', opts['dest']])
-        ], shell=True, logdir=source)
+            '-c:a', 'copy', '-acodec', 'aac', opts['dest']])
+        ], shell=True)
     return result
 
 def handbrake(source,output):
