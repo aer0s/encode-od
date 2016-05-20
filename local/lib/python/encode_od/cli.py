@@ -158,8 +158,9 @@ def main(source, output,force,no_logging,notify,email_sender,email_host,email_po
             log('FFmpeg Failure!:\n%s' % str(Err), email_temp)
             exit()
 
-            log('Encoding finished.', email_temp)
-            eject(source)
+        shell(['touch %s' % os.path.join(groupP, 'complete.done')])
+        log('Encoding finished.', email_temp)
+        eject(source)
     else:
         log('This od has been encoded already. If you woul like to do it again plese use --force option.', email_temp)
 
