@@ -36,7 +36,7 @@ def main(source, output, force, no_logging, eject_disc, notify, email_sender,
         email_obj = {
             'sender': email_sender,
             'receivers': notify,
-            'subject': 'Encoding %s' % title,
+            'subject': 'Encoding %(title)s',
             'host': email_host,
             'port': email_port,
             'starttls': starttls,
