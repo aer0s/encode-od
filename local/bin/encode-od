@@ -5,9 +5,9 @@ import sys
 
 # Append this project to the PYTHONPATH and start
 proj_dir = os.path.realpath(__file__)
-    # And move up 4 directories ie
-    # ....../encode-od/local/bin/encode-od
-    #           ^--4--|--3--|-2-|---1---| file
+# And move up 4 directories ie
+# ....../encode-od/local/bin/encode-od
+#           ^--4--|--3--|-2-|---1---| file
 for i in range(3):
     proj_dir = os.path.dirname(proj_dir)
 
