@@ -22,7 +22,7 @@ class odTools(object):
         self.logging = kwargs.get('logging', False)
         self.log_name = kwargs.get('log_name', 'rip.log')
         self.email_temp = kwargs.get('email', False)
-        self.output = kwargs.get('output', os.getcwd())
+        self.output = os.path.abspath(kwargs.get('output', os.getcwd()))
         self.title = kwargs.get('title', False)
         # this needs to be done afert title and output assignment
         if self.title:
@@ -170,17 +170,15 @@ class odTools(object):
             biggest = sizes.index(max(sizes))
             # remove the largest mkv from the list
             del destroy[biggest]
-
             save_path = self.paths['actual']['mkv']
-            os.rename(os.path.join(self.group, mkvs[biggest]), save_path)
+            os.rename(mkvs[biggest], save_path)
 
             self.log('Cleaning up')
             for path in destroy:
-                d_path = os.path.join(self.group, path)
                 try:
-                    os.remove(d_path)
+                    os.remove(path)
                 except Exception:
-                    self.log('Failed to remove: %s' % d_path)
+                    self.log('Failed to remove: %s' % path)
 
         else:
             self.log(cmd % (source_disc, self.group))
