@@ -86,7 +86,7 @@ class odTools(object):
         self.title = result.replace('_', ' ').title()
         if self.email_temp:
             title_obj = {'title': self.title}
-            self.email_temp['title'] = self.email_temp['title'] % title_obj
+            self.email_temp['subject'] = self.email_temp['subject'] % title_obj
         self.paths = self.get_filenames()
         self.logging = original_logging
         return self.title
