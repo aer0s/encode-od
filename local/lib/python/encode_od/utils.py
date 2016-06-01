@@ -23,6 +23,7 @@ class odTools(object):
         self.log_name = kwargs.get('log_name', 'rip.log')
         self.email_temp = kwargs.get('email', False)
         self.output = os.path.abspath(kwargs.get('output', os.getcwd()))
+        self.lock_name = kwargs.get('lock_name', 'encodeODsource.lock')
         self.title = kwargs.get('title', False)
         # this needs to be done afert title and output assignment
         if self.title:
@@ -97,7 +98,7 @@ class odTools(object):
         os.makedirs(self.group, exist_ok=True)
 
         extless = os.path.join(self.group, self.title)
-        return {
+        paths = {
             'actual': {
                 'mkv': '%s.mkv' % extless,
                 'm4v': '%s.m4v' % extless,
@@ -106,19 +107,30 @@ class odTools(object):
                 'srt': '%s.srt' % extless,
                 'sub': '%s.sub' % extless,
                 'subPath': '%s' % extless,
-                'log': os.path.join(self.group, self.log_name)
+                'log': os.path.join(self.group, self.log_name),
+                'done': os.path.join(self.group, 'complete.done'),
+                'moved': os.path.join(self.group, 'complete.moved'),
+                'lock': os.path.join(self.output, self.lock_name)
                 },
-            'quoted': {
-                'mkv': quote('%s.mkv' % extless),
-                'm4v': quote('%s.m4v' % extless),
-                'mkvCopy': quote('%s-working.mkv' % extless),
-                'idx': quote('%s.idx' % extless),
-                'srt': quote('%s.srt' % extless),
-                'sub': quote('%s.sub' % extless),
-                'subPath': quote('%s' % extless),
-                'log': quote(os.path.join(self.group, self.log_name))
-                }
             }
+        paths['quoted'] = {t: quote(v) for t, v in paths['actual'].items()}
+        return paths
+
+    def lock(self, lock=True):
+        if lock:
+            with open(self.paths['actual']['lock'], 'w') as lk:
+                pass
+        else:
+            os.remove(self.paths['actual']['lock'])
+
+    def isdone(self):
+            return any([
+                        os.path.isfile(self.paths['actual']['done']),
+                        os.path.isfile(self.paths['actual']['moved'])
+                    ])
+
+    def islocked(self):
+            return os.path.isfile(self.paths['actual']['lock'])
 
     def ffmpeg(self):
         opts = {
@@ -160,9 +172,16 @@ class odTools(object):
             self.send_email(message=message, **self.email_temp)
 
     def makemkv(self, source_disc):
+        # TODO locate source disc mapping using makemkvcon info -r list command
+        dvs, source = [], '"/dev/sr%d"' % source_disc
+        cmd = ['makemkvcon info -r list']
+        for s in self.shell(cmd, shell=True, log=False).split('\n'):
+            if s.startswith('DRV'):
+                dvs.append(s.replace('DRV:', '').split(','))
+        src_disc = int(''.join([d[0] for d in dvs if source in d]))
         self.log('Running makemkv')
         cmd = 'makemkvcon mkv --decrypt --cache=16 -r disc:%d all %s'
-        self.shell([cmd % (source_disc, self.group)], shell=True)
+        self.shell([cmd % (src_disc, self.group)], shell=True)
 
         # Find which files to keep
         fl = os.listdir(self.group)
@@ -230,7 +249,7 @@ class odTools(object):
         elif kwargs.get('shell', False):
             r = Popen(cmd, stdout=PIPE, shell=True)
             (output, err) = r.communicate()
-            if self.logging:
+            if self.logging and kwargs.get('log', True):
                 if output:
                     self.log(output.decode('utf-8'))
                 if err:

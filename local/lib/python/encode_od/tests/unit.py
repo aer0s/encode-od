@@ -1,8 +1,11 @@
-import unittest, sys, os, shutil
+import unittest
+import sys
+import os
+import shutil
 proj_dir = os.path.realpath(__file__)
 for i in range(6):
     proj_dir = os.path.dirname(proj_dir)
-sys.path.append(os.path.join(proj_dir,'local','lib','python'))
+sys.path.append(os.path.join(proj_dir, 'local', 'lib', 'python'))
 from encode_od.utils import odTools
 
 testdir = os.path.join('/tmp', 'Dvd')
@@ -41,6 +44,22 @@ class TestUtilMethods(unittest.TestCase):
         self.assertEqual(cli.paths['actual']['subPath'], subPath)
         self.assertEqual(cli.paths['actual']['log'], log)
 
+    def test_lock(self):
+        cli.lock()
+        self.assertTrue(cli.islocked())
+        cli.lock(False)
+        self.assertFalse(cli.islocked())
+
+    def test_done(self):
+        self.assertFalse(cli.isdone())
+        with open(cli.paths['actual']['done']):
+            pass
+        self.assertTrue(cli.isdone())
+        os.remove(cli.paths['actual']['done'])
+        with open(cli.paths['actual']['moved']):
+            pass
+        self.assertTrue(cli.isdone())
+        os.remove(cli.paths['actual']['moved'])
 
 if __name__ == '__main__':
     unittest.main()

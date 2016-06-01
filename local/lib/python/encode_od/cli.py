@@ -11,6 +11,8 @@ from encode_od.utils import odTools
 @click.option('--force', is_flag=True, help='Force overwrite')
 @click.option('--no-logging', is_flag=True, help='Disable logging')
 @click.option('--eject-disc', is_flag=True, help='Eject\'s on completion')
+@click.option('--mkv-only', is_flag=True, help='Restricts output to MKV')
+@click.option('--title', help='Override disc title')
 @click.option('--notify', '-n', default=False, multiple=True,
               help='Email address to notify')
 @click.option('--email-sender', '-f', default='encode@optical.disc',
@@ -26,9 +28,9 @@ from encode_od.utils import odTools
               help='Shell execute this command on Done with Disc Event')
 @click.option('--event-done', default=False,
               help='Shell execute this command on All Done Event')
-def main(source, output, force, no_logging, eject_disc, notify, email_sender,
-         email_host, email_port, starttls, email_user, email_pass, event_start,
-         event_disc_done, event_done):
+def main(source, output, force, no_logging, eject_disc, mkv_only, title,
+         notify, email_sender, email_host, email_port, starttls, email_user,
+         email_pass, event_start, event_disc_done, event_done):
     email_obj, send = False, False
     logging = True if not no_logging else False
     if notify:
@@ -43,18 +45,19 @@ def main(source, output, force, no_logging, eject_disc, notify, email_sender,
             'user': email_user,
             'password': email_pass,
             }
-    cli = odTools(output=output, email=email_obj, logging=logging)
+    t = title if title else False
+    cli = odTools(output=output, email=email_obj, logging=logging, title=t)
     # get the movie title
     cli.get_dvd_name(source)
     cli.log('Encoding started.', notify=send)
-    cli.paths['actual']['complete'] = os.path.join(cli.group, 'complete.done')
 
     # If this has already been done then kill this attempt unless forced
-    if not os.path.isfile(cli.paths['actual']['complete']) or force:
+    if not any([cli.isdone(), cli.islocked()]) or force:
         if event_start:
             cli.shell(event_start, shell=True, standalone=True)
 
         # rip to mkv
+        cli.lock()  # Lock the optical mediums from additional encodeOD process
         cli.log('Rip to mkv')
         try:
             cli.makemkv(source)
@@ -68,7 +71,10 @@ def main(source, output, force, no_logging, eject_disc, notify, email_sender,
                     'HandBrake MKV encode Failure!:\n%s' % str(Err),
                     notify=send
                     )
+                cli.lock(False)
                 exit()
+
+        cli.lock(False)  # Unlock the optical mediums for add encodeOD process
         if event_disc_done:
             cli.shell(event_disc_done, shell=True, standalone=True)
         if eject_disc:
@@ -81,24 +87,32 @@ def main(source, output, force, no_logging, eject_disc, notify, email_sender,
         except Exception as Err:
             cli.log('Subtitle Failure!:\n%s' % str(Err), notify=send)
 
-        # Encode mp4
-        cli.log('Encode mp4')
-        try:
-            cli.ffmpeg()
-        except Exception as Err:
-            cli.log('FFmpeg Failure!:\n%s' % str(Err), notify=send)
-            exit()
+        if not mkv_only:
+            # Encode mp4
+            cli.log('Encode mp4')
+            try:
+                cli.ffmpeg()
+            except Exception as Err:
+                cli.log('FFmpeg Failure!:\n%s' % str(Err), notify=send)
+                exit()
 
-        f = open(cli.paths['actual']['complete'], 'w')
-        f.close()
+        with open(cli.paths['actual']['done'], 'w') as f:
+            pass
         cli.log('Encoding finished.', notify=send)
         if event_done:
             cli.shell(event_done, shell=True, standalone=True)
     else:
-        cli.log(' '.join([
-            'This od has been encoded already. If you would like to do it',
-            'anyway plese use --force option.'
-            ]), notify=send)
+        if cli.islocked:
+            cli.log(' '.join([
+                'The od devices are locked because some other process is',
+                'using one of them. If you would like to do it anyway plese ',
+                'use --force option.'
+                ]), notify=send)
+        else:
+            cli.log(' '.join([
+                'This od has been encoded already. If you would like to do it',
+                'anyway plese use --force option.'
+                ]), notify=send)
 
 
 if __name__ == "__main__":
