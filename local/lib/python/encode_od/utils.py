@@ -16,6 +16,7 @@ else:
 
 
 class odTools(object):
+
     def __init__(self, **kwargs):
         # This is decieving as by default shell commands are logged.
         # See logging assignment in main()
@@ -50,9 +51,9 @@ class odTools(object):
             self.shell(['vobsub2srt %(subPath)s' % sfiles], shell=True)
             self.log('Subtitles converted, begining merge...')
             cmd = ' '.join([
-                    "mkvmerge -o %(mkvCopy)s --subtitle-tracks",
-                    "%(id)d %(mkv)s %(srt)s"
-                    ])
+                "mkvmerge -o %(mkvCopy)s --subtitle-tracks",
+                "%(id)d %(mkv)s %(srt)s"
+            ])
             self.shell([cmd % sfiles], shell=True)
             self.log('Cleaning up ...')
             for ftype in ['idx', 'sub', 'mkv']:
@@ -81,7 +82,7 @@ class odTools(object):
         cmd = ' '.join([
             "vobcopy -i /dev/sr%d -I 2>&1 > /dev/stdout" % source,
             "| grep DVD-name | sed -e 's/.*DVD-name: //'",
-            ])
+        ])
 
         result = self.shell(cmd, shell=True, as_string=True).strip()
         self.title = result.replace('_', ' ').title()
@@ -111,8 +112,8 @@ class odTools(object):
                 'done': os.path.join(self.group, 'complete.done'),
                 'moved': os.path.join(self.group, 'complete.moved'),
                 'lock': os.path.join(self.output, self.lock_name)
-                },
-            }
+            },
+        }
         paths['quoted'] = {t: quote(v) for t, v in paths['actual'].items()}
         return paths
 
@@ -124,20 +125,20 @@ class odTools(object):
             os.remove(self.paths['actual']['lock'])
 
     def isdone(self):
-            return any([
-                        os.path.isfile(self.paths['actual']['done']),
-                        os.path.isfile(self.paths['actual']['moved'])
-                    ])
+        return any([
+            os.path.isfile(self.paths['actual']['done']),
+            os.path.isfile(self.paths['actual']['moved'])
+        ])
 
     def islocked(self):
-            return os.path.isfile(self.paths['actual']['lock'])
+        return os.path.isfile(self.paths['actual']['lock'])
 
     def ffmpeg(self):
         opts = {
             'src': self.paths['quoted']['mkv'],
             'dest': self.paths['quoted']['m4v'],
             'srt': self.paths['actual']['srt'],
-            }
+        }
         # make sure srt file actually exists
         if os.path.isfile(opts['srt']):
             opts['srt'] = '-i %s -map 1:s -c:s mov_text' % quote(opts['srt'])
@@ -145,18 +146,18 @@ class odTools(object):
             opts['srt'] = ''
 
         result = self.shell([' '.join([
-                'ffmpeg', '-i', opts['src'], opts['srt'],
-                '-map', '0:v', '-map', '0:a',
-                '-c:v', 'copy', '-vcodec', 'libx264',
-                '-c:a', 'copy', '-acodec', 'aac', opts['dest']])
-            ], shell=True)
+            'ffmpeg', '-i', opts['src'], opts['srt'],
+            '-map', '0:v', '-map', '0:a',
+            '-c:v', 'copy', '-vcodec', 'libx264',
+            '-c:a', 'copy', '-acodec', 'aac', opts['dest']])
+        ], shell=True)
         self.log(result)
 
     def handbrake(self, source, format='mkv'):
         opts = {
             'src': quote(source),
             'dest': self.paths['quoted'][format],
-            }
+        }
         cmd = 'HandBrakeCLI -i %(src)s -o %(dest)s --preset="AppleTV 3"' % opts
         return self.shell(cmd, shell=True)
 
@@ -223,7 +224,7 @@ class odTools(object):
             'Subject: %s' % subject,
             '',
             message
-            ])
+        ])
 
         try:
             smtpObj = smtplib.SMTP(host, port)

@@ -1,6 +1,35 @@
 import os
+import sys
 import click
 from encode_od.utils import odTools
+import pdb
+
+
+def parse_prefs(pref_file):
+    if os.path.isfile(pref_file):
+        data = open(pref_file, 'r')
+        try:
+            if sys.version_info[0] == 3:
+                import yaml3 as yaml
+            else:
+                import yaml
+            prefs = yaml.safe_load(data)
+        except Exception as err:
+            echoC('Using basic parser %s' % err)
+            echoC('This is goig to cause you a problem, please report',
+                  fg=red)
+            data = open(pref_file, 'r')
+            prefs = {}
+            for line in data:
+                # TODO: Fix this so that nested elements are parsed as dist
+                #       and lists
+                if line[0] != '#':
+                    div = line.find(':')
+                    prefs[line[0:div]] = line[div + 1:]
+        data.close()
+        return prefs
+    else:
+        return {}
 
 
 @click.command()
@@ -22,6 +51,10 @@ from encode_od.utils import odTools
 @click.option('--starttls', '-t', is_flag=True, help='Email starttls')
 @click.option('--email-user', '-u', default=False, help='Email user')
 @click.option('--email-pass', '-p', default=False, help='Email password')
+@click.option('--pref-file',
+              default=os.path.join(
+                  os.path.expanduser('~'), '.config', 'encode-od.yml'),
+              help='Prefrence File')
 @click.option('--event-start', default=False,
               help='Shell execute this command on Start Event')
 @click.option('--event-disc-done', default=False,
@@ -30,7 +63,30 @@ from encode_od.utils import odTools
               help='Shell execute this command on All Done Event')
 def main(source, output, force, no_logging, eject_disc, mkv_only, title,
          notify, email_sender, email_host, email_port, starttls, email_user,
-         email_pass, event_start, event_disc_done, event_done):
+         email_pass, pref_file, event_start, event_disc_done, event_done):
+    # This is long and shouldn't be necessary, but
+    # locals().update(parse_prefs(pref_file))  doesn't work!
+    prefs = parse_prefs(pref_file)
+    output = prefs.get('output', output)
+    force = prefs.get('force', force)
+    no_logging = prefs.get('no_logging', no_logging)
+    eject_disc = prefs.get('eject_disc', eject_disc)
+    mkv_only = prefs.get('mkv_only', mkv_only)
+    title = prefs.get('title', title)
+    notify = prefs.get('notify', notify)
+    email_sender = prefs.get('email_sender', email_sender)
+    email_host = prefs.get('email_host', email_host)
+    email_port = prefs.get('email_port', email_port)
+    starttls = prefs.get('starttls', starttls)
+    email_user = prefs.get('email_user', email_user)
+    email_pass = prefs.get('email_pass', email_pass)
+    event_start = prefs.get('event_start', event_start)
+    event_disc_done = prefs.get('event_disc_done', event_disc_done)
+    event_done = prefs.get('event_done', event_done)
+
+    if '~' in output:
+        output = os.path.expanduser(output)
+
     email_obj, send = False, False
     logging = True if not no_logging else False
     if notify:
@@ -44,7 +100,8 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
             'starttls': starttls,
             'user': email_user,
             'password': email_pass,
-            }
+        }
+
     t = title if title else False
     cli = odTools(output=output, email=email_obj, logging=logging, title=t)
     # get the movie title
@@ -70,7 +127,7 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
                 cli.log(
                     'HandBrake MKV encode Failure!:\n%s' % str(Err),
                     notify=send
-                    )
+                )
                 cli.lock(False)
                 exit()
 
@@ -107,12 +164,12 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
                 'The od devices are locked because some other process is',
                 'using one of them. If you would like to do it anyway plese ',
                 'use --force option.'
-                ]), notify=send)
+            ]), notify=send)
         else:
             cli.log(' '.join([
                 'This od has been encoded already. If you would like to do it',
                 'anyway plese use --force option.'
-                ]), notify=send)
+            ]), notify=send)
 
 
 if __name__ == "__main__":
