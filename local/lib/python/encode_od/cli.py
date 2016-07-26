@@ -103,7 +103,9 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
         }
 
     t = title if title else False
-    cli = odTools(output=output, email=email_obj, logging=logging, title=t)
+    cli = odTools(
+        output=output, email=email_obj, logging=logging, title=t,
+        lock_name='encodeODsr%d.lock' % source)
     # get the movie title
     cli.get_dvd_name(source)
     cli.log('Encoding started.', notify=send)
