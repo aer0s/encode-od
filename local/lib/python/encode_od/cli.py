@@ -132,6 +132,13 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
                 )
                 cli.lock(False)
                 exit()
+        if os.path.isfile(cli.paths['actual']['mkv']):
+            cli.make_preview()
+        else:
+            # Failsafe, shouldn't be called
+            cli.log('Encoding failure at MKV. Aborting job!', notify=send)
+            cli.lock(False)
+            exit()
 
         cli.lock(False)  # Unlock the optical mediums for add encodeOD process
         if event_disc_done:

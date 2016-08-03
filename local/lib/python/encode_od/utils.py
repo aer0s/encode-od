@@ -6,13 +6,8 @@ import smtplib
 import datetime
 import shlex
 import click
-
-
-if float(sys.version[:3]) < 3.3:
-    from pipes import quote
-else:
-    from shlex import quote
-    unicode = str
+from shlex import quote
+import hashlib
 
 
 class odTools(object):
@@ -89,12 +84,24 @@ class odTools(object):
         if self.email_temp:
             title_obj = {'title': self.title}
             self.email_temp['subject'] = self.email_temp['subject'] % title_obj
+        # create a uid
+        mnt = ''.join(self.shell("mount | grep /dev/sr%d | awk '{print $3}'" %
+                                 source, shell=True,
+                                 as_string=True).split('\n'))
+        size = self.shell("du -s %s | awk '{print $1}'" % mnt,
+                          shell=True, as_string=True) if mnt else ''
+        self.uid = hashlib.sha1(
+            (str(self.title) + str(size)).encode('utf-8')).hexdigest()
         self.paths = self.get_filenames()
         self.logging = original_logging
         return self.title
 
     def get_filenames(self):
-        self.group = os.path.join(self.output, self.title.replace(' ', '_'))
+        if hasattr(self, 'uid'):
+            self.group = os.path.join(self.output, self.uid)
+        else:
+            self.group = os.path.join(
+                self.output, self.title.replace(' ', '_'))
         os.makedirs(self.output, exist_ok=True)
         os.makedirs(self.group, exist_ok=True)
 
@@ -103,6 +110,7 @@ class odTools(object):
             'actual': {
                 'mkv': '%s.mkv' % extless,
                 'm4v': '%s.m4v' % extless,
+                'gif': '%s Preview.gif' % extless,
                 'mkvCopy': '%s-working.mkv' % extless,
                 'idx': '%s.idx' % extless,
                 'srt': '%s.srt' % extless,
@@ -162,7 +170,7 @@ class odTools(object):
         return self.shell(cmd, shell=True)
 
     def log(self, message, **kwargs):
-        if type(message) not in [str, unicode]:
+        if type(message) is not str:
             message = str(message)
         with open(self.paths['actual']['log'], 'a') as log_file:
             log_file.write('[ %s ] - ' % str(datetime.datetime.now()))
@@ -205,6 +213,15 @@ class odTools(object):
 
         else:
             self.log(cmd % (source_disc, self.group))
+
+    def make_preview(self):
+        self.shell(
+            'ffmpeg -i %(mkv)s -t 9 -ss 00:02:00 -vf scale=320:-1 -y %(gif)s' %
+            self.paths['quoted'], shell=True, as_string=True)
+        if os.path.isfile(self.paths['actual']['gif']):
+            self.log('Priview GIF created.')
+        else:
+            self.log('Priview GIF failed to create.')
 
     def send_email(self, **kwargs):
         sender = kwargs.get('sender', False)
