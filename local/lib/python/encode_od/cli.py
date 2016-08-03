@@ -67,6 +67,7 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
     # This is long and shouldn't be necessary, but
     # locals().update(parse_prefs(pref_file))  doesn't work!
     prefs = parse_prefs(pref_file)
+    prefs['source'] = source
     output = prefs.get('output', output)
     force = prefs.get('force', force)
     no_logging = prefs.get('no_logging', no_logging)
@@ -113,7 +114,7 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
     # If this has already been done then kill this attempt unless forced
     if not any([cli.isdone(), cli.islocked()]) or force:
         if event_start:
-            cli.shell(event_start, shell=True, standalone=True)
+            cli.shell([event_start % prefs], shell=True, standalone=True)
 
         # rip to mkv
         cli.lock()  # Lock the optical mediums from additional encodeOD process
@@ -142,7 +143,7 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
 
         cli.lock(False)  # Unlock the optical mediums for add encodeOD process
         if event_disc_done:
-            cli.shell(event_disc_done, shell=True, standalone=True)
+            cli.shell([event_disc_done % prefs], shell=True, standalone=True)
         if eject_disc:
             cli.eject(source)
 
@@ -166,7 +167,7 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
             pass
         cli.log('Encoding finished.', notify=send)
         if event_done:
-            cli.shell(event_done, shell=True, standalone=True)
+            cli.shell([event_done % prefs], shell=True, standalone=True)
     else:
         if cli.islocked:
             cli.log(' '.join([
