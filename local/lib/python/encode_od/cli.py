@@ -104,6 +104,8 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
         }
 
     t = title if title else False
+    if event_start:
+        cli.shell([event_start % prefs], shell=True, standalone=True)
     cli = odTools(
         output=output, email=email_obj, logging=logging, title=t,
         lock_name='encodeODsr%d.lock' % source)
@@ -113,8 +115,6 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
 
     # If this has already been done then kill this attempt unless forced
     if not any([cli.isdone(), cli.islocked()]) or force:
-        if event_start:
-            cli.shell([event_start % prefs], shell=True, standalone=True)
 
         # rip to mkv
         cli.lock()  # Lock the optical mediums from additional encodeOD process
