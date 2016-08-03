@@ -2,6 +2,7 @@ import os
 import sys
 import click
 from encode_od.utils import odTools
+from subprocess import call
 import pdb
 
 
@@ -105,7 +106,7 @@ def main(source, output, force, no_logging, eject_disc, mkv_only, title,
 
     t = title if title else False
     if event_start:
-        cli.shell([event_start % prefs], shell=True, standalone=True)
+        call(event_start % prefs, shell=True)
     cli = odTools(
         output=output, email=email_obj, logging=logging, title=t,
         lock_name='encodeODsr%d.lock' % source)
